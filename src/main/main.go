@@ -66,7 +66,7 @@ func addCat(c echo.Context) error {
 	err = json.Unmarshal(b, &cat)
 
 	if err != nil {
-		log.Printf("Failed unmarshaling in addCats", err)
+		log.Printf("Failed unmarshaling in addCats: %s", err)
 		return c.String(http.StatusInternalServerError, "")
 	}
 
