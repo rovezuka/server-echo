@@ -109,10 +109,22 @@ func mainAdmin(c echo.Context) error {
 	return c.String(http.StatusOK, "Horay you are on the secret admin main page!")
 }
 
+// /////////////////////////// middlewares /////////////////////////////
+func ServerHeader(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		c.Response().Header().Set(echo.HeaderServer, "rovezuka/1.0")
+		c.Response().Header().Set("MyServer", "This is my server")
+
+		return next(c)
+	}
+}
+
 func main() {
 	fmt.Println("Welcome to the server")
 
 	e := echo.New()
+
+	e.Use(ServerHeader)
 
 	g := e.Group("/admin")
 
@@ -120,6 +132,8 @@ func main() {
 	g.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Format: "[${time_rfc3339}  ${status}  ${method}  ${host}${path}  ${latency_human}]" + "\n",
 	}))
+
+	g.Use()
 
 	g.GET("/main", mainAdmin)
 
