@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -109,6 +111,31 @@ func mainAdmin(c echo.Context) error {
 	return c.String(http.StatusOK, "Horay you are on the secret admin main page!")
 }
 
+func mainCookie(c echo.Context) error {
+	return c.String(http.StatusOK, "You are on the secret cookie page")
+}
+
+func login(c echo.Context) error {
+	username := c.QueryParam("username")
+	password := c.QueryParam("password")
+
+	// check username and password against DB after hashing the password
+	if username == "jack" && password == "1234" {
+		cookie := &http.Cookie{}
+
+		cookie.Name = "sessionID"
+		cookie.Value = "some_string"
+		cookie.Expires = time.Now().Add(48 * time.Hour)
+
+		c.SetCookie(cookie)
+
+		return c.String(http.StatusOK, "You were logged on!")
+
+	}
+
+	return c.String(http.StatusOK, "Your username or password were wrong")
+}
+
 // /////////////////////////// middlewares /////////////////////////////
 func ServerHeader(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
@@ -119,6 +146,26 @@ func ServerHeader(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
+func checkCookie(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		cookie, err := c.Cookie("sessionID")
+
+		if err != nil {
+			if strings.Contains(err.Error(), "named cookie not present") {
+				return c.String(http.StatusUnauthorized, "you dont have any cookie")
+			}
+			log.Println(err)
+			return err
+		}
+
+		if cookie.Value == "some_string" {
+			return next(c)
+		}
+
+		return c.String(http.StatusUnauthorized, "You dont have the right cookie")
+	}
+}
+
 func main() {
 	fmt.Println("Welcome to the server")
 
@@ -126,14 +173,16 @@ func main() {
 
 	e.Use(ServerHeader)
 
-	g := e.Group("/admin")
+	adminGroup := e.Group("/admin")
+
+	cookieGroup := e.Group("/cookie")
 
 	// this logs the server interaction
-	g.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+	adminGroup.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Format: "[${time_rfc3339}  ${status}  ${method}  ${host}${path}  ${latency_human}]" + "\n",
 	}))
 
-	g.Use(middleware.BasicAuth(func(username, password string, c echo.Context) (bool, error) {
+	adminGroup.Use(middleware.BasicAuth(func(username, password string, c echo.Context) (bool, error) {
 		// check in the DB
 		if username == "jack" && password == "1234" {
 			return true, nil
@@ -143,7 +192,13 @@ func main() {
 
 	}))
 
-	g.GET("/main", mainAdmin)
+	cookieGroup.Use(checkCookie)
+
+	cookieGroup.GET("/main", mainCookie)
+
+	adminGroup.GET("/main", mainAdmin)
+
+	e.GET("login", login)
 
 	e.GET("/", yallo)
 
